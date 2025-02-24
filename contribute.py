@@ -7,8 +7,7 @@ from random import randint
 from subprocess import Popen
 import sys
 
-
-def main(def_args=sys.argv[1:]):
+def main(def_args=sys.argv[1:]) -> None:
     args = arguments(def_args)
     curr_date = datetime.now()
     directory = 'repository-' + curr_date.strftime('%Y-%m-%d-%H-%M-%S')
@@ -27,9 +26,9 @@ def main(def_args=sys.argv[1:]):
     days_after = args.days_after
     if days_after < 0:
         sys.exit('days_after must not be negative')
-    os.mkdir(directory)
-    os.chdir(directory)
-    run(['git', 'init', '-b', 'main'])
+
+    create_directory(directory)
+    chdir_to_repo(repository, directory)
 
     if user_name is not None:
         run(['git', 'config', 'user.name', user_name])
@@ -55,7 +54,7 @@ def main(def_args=sys.argv[1:]):
           '\x1b[6;30;42mcompleted successfully\x1b[0m!')
 
 
-def contribute(date):
+def contribute(date) -> None:
     with open(os.path.join(os.getcwd(), 'README.md'), 'a') as file:
         file.write(message(date) + '\n\n')
     run(['git', 'add', '.'])
@@ -63,15 +62,38 @@ def contribute(date):
          '--date', date.strftime('"%Y-%m-%d %H:%M:%S"')])
 
 
-def run(commands):
+def chdir_to_repo(repository, directory) -> None:
+    if repository is None:
+        return
+
+    git_command = ['git', repository, directory]
+
+    if ".git" in os.listdir():
+        git_command.insert(1, 'submodule')
+        git_command.insert(2, 'add')
+        print("it appears you are running this script in repo. adding new repo as submodule")
+    else:
+        git_command.insert(1, 'clone')
+
+    if directory not in os.listdir():
+        try:
+            run(git_command)
+        except Exception as e:
+            print(e)
+            raise Exception('Repository does not exist. Please check if the link is SSH and do your user has access to your ssh keys')
+    os.chdir(directory)
+    run(['git', 'pull'])
+
+
+def run(commands) -> None:
     Popen(commands).wait()
 
 
-def message(date):
+def message(date) -> str:
     return date.strftime('Contribution: %Y-%m-%d %H:%M')
 
 
-def contributions_per_day(args):
+def contributions_per_day(args) -> int:
     max_c = args.max_commits
     if max_c > 20:
         max_c = 20
@@ -80,7 +102,7 @@ def contributions_per_day(args):
     return randint(1, max_c)
 
 
-def arguments(argsval):
+def arguments(argsval) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('-nw', '--no_weekends',
                         required=False, action='store_true', default=False,
@@ -122,6 +144,12 @@ def arguments(argsval):
                         last commit will be on a future date which is the
                         current date plus 30 days.""")
     return parser.parse_args(argsval)
+
+
+def create_directory(directory: str) -> None:
+    if not os.path.exists(directory):
+        os.mkdir(directory)
+    os.chdir(directory)
 
 
 if __name__ == "__main__":
